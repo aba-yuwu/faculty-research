@@ -1,0 +1,104 @@
+{
+ "_comment": "Seed aliases. resolve_v2.py appends newly learned mappings here automatically.",
+ "_format": "roster_string -> {openalex_id, display_name, learned}",
+ "NUS": {
+  "display_name": "National University of Singapore",
+  "learned": false
+ },
+ "NTU": {
+  "display_name": "Nanyang Technological University",
+  "learned": false
+ },
+ "HKU": {
+  "display_name": "University of Hong Kong",
+  "learned": false
+ },
+ "HKUST": {
+  "display_name": "Hong Kong University of Science and Technology",
+  "learned": false
+ },
+ "CUHK": {
+  "display_name": "Chinese University of Hong Kong",
+  "learned": false
+ },
+ "PolyU": {
+  "display_name": "Hong Kong Polytechnic University",
+  "learned": false
+ },
+ "CityUHK": {
+  "display_name": "City University of Hong Kong",
+  "learned": false
+ },
+ "UCHI": {
+  "display_name": "University of Chicago",
+  "learned": false
+ },
+ "WashU": {
+  "display_name": "Washington University in St. Louis",
+  "learned": false
+ },
+ "UMich": {
+  "display_name": "University of Michigan",
+  "learned": false
+ },
+ "UCLA": {
+  "display_name": "University of California, Los Angeles",
+  "learned": false
+ },
+ "UCB": {
+  "display_name": "University of California, Berkeley",
+  "learned": false
+ },
+ "UPenn": {
+  "display_name": "University of Pennsylvania",
+  "learned": false
+ },
+ "UT Austin": {
+  "display_name": "University of Texas at Austin",
+  "learned": false
+ },
+ "CMU": {
+  "display_name": "Carnegie Mellon University",
+  "learned": false
+ },
+ "LSE": {
+  "display_name": "London School of Economics and Political Science",
+  "learned": false
+ },
+ "LBS": {
+  "display_name": "London Business School",
+  "learned": false
+ },
+ "SMU": {
+  "display_name": "Singapore Management University",
+  "learned": false
+ },
+ "KAIST": {
+  "display_name": "Korea Advanced Institute of Science and Technology",
+  "learned": false
+ },
+ "PKU": {
+  "display_name": "Peking University",
+  "learned": false
+ },
+ "THU": {
+  "display_name": "Tsinghua University",
+  "learned": false
+ },
+ "SJTU": {
+  "display_name": "Shanghai Jiao Tong University",
+  "learned": false
+ },
+ "Fudan": {
+  "display_name": "Fudan University",
+  "learned": false
+ },
+ "IIT": {
+  "display_name": "Indian Institute of Technology",
+  "learned": false
+ },
+ "IIM": {
+  "display_name": "Indian Institute of Management",
+  "learned": false
+ }
+}
