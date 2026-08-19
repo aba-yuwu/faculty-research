@@ -1,0 +1,200 @@
+[
+  {
+    "name": "Alice Chen",
+    "institution": "HKUST",
+    "field": "finance",
+    "reliability": {"confidence": 95, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Capital Structure Decisions under Ambiguity", "year": 2025,
+       "topics_detail": [{"topic": "Capital Structure and Firm Performance", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.98}]},
+      {"title": "M&A Waves and Managerial Incentives", "year": 2024,
+       "topics_detail": [{"topic": "Mergers and Acquisitions", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.95}]}
+    ],
+    "journal_ranking": {"tier": "top", "tier_reason": "命中UTD24期刊", "window_a_paper_count": 5}
+  },
+  {
+    "name": "Bob Wang",
+    "institution": "NUS",
+    "field": "finance",
+    "reliability": {"confidence": 88, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Governance Reforms and Firm Value", "year": 2025,
+       "topics_detail": [{"topic": "Ownership Structure and Control", "subfield": "Corporate Finance and Governance", "field": "Economics, Econometrics and Finance", "score": 0.9}]},
+      {"title": "ESG Disclosure and Cost of Capital", "year": 2024,
+       "topics_detail": [{"topic": "ESG and Sustainable Finance", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.92}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 4}
+  },
+  {
+    "name": "Carol Li",
+    "institution": "CUHK",
+    "field": "finance",
+    "reliability": {"confidence": 82, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Cross-Border Acquisitions and Post-Merger Performance", "year": 2025,
+       "topics_detail": [{"topic": "Mergers and Acquisitions", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.97}]}
+    ],
+    "journal_ranking": {"tier": "top", "tier_reason": "命中UTD24期刊", "window_a_paper_count": 3}
+  },
+  {
+    "name": "David Zhang",
+    "institution": "PKU",
+    "field": "finance",
+    "reliability": {"confidence": 78, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Macro-Financial Linkages in Emerging Markets", "year": 2024,
+       "topics_detail": [{"topic": "Macroeconomic Policy and Business Cycles", "subfield": "Macroeconomics", "field": "Economics, Econometrics and Finance", "score": 0.88}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 2}
+  },
+  {
+    "name": "Emma Liu",
+    "institution": "Fudan",
+    "field": "finance",
+    "reliability": {"confidence": 90, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Capital Structure Choices of Chinese Listed Firms", "year": 2024, "topics_detail": []}
+    ],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 1}
+  },
+  {
+    "name": "Frank Xu",
+    "institution": "Tsinghua",
+    "field": "finance",
+    "reliability": {"confidence": 91, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Dividend Smoothing and Payout Policy", "year": 2025,
+       "topics_detail": [{"topic": "Dividend Policy and Payout", "subfield": "Corporate Finance and Governance", "field": "Economics, Econometrics and Finance", "score": 0.93}]},
+      {"title": "Leverage Dynamics and Firm Investment", "year": 2024,
+       "topics_detail": [{"topic": "Capital Structure and Firm Performance", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.9}]},
+      {"title": "Green Bonds and Investor Attention", "year": 2023,
+       "topics_detail": [{"topic": "Green Bonds and Climate Finance", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.85}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 6}
+  },
+  {
+    "name": "Grace Huang",
+    "institution": "SJTU",
+    "field": "finance",
+    "reliability": {"confidence": 72, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Household Portfolio Choice and Financial Literacy", "year": 2024,
+       "topics_detail": [{"topic": "Household Finance and Consumption", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.86}]}
+    ],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 2}
+  },
+  {
+    "name": "Henry Zhou",
+    "institution": "ZJU",
+    "field": "finance",
+    "reliability": {"confidence": 60, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Acquisition Financing and Bank Relationships", "year": 2023,
+       "topics_detail": [{"topic": "Mergers and Acquisitions", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.8}]}
+    ],
+    "journal_ranking": null
+  },
+  {
+    "name": "Ivy Sun",
+    "institution": "HKU",
+    "field": "finance",
+    "reliability": {"confidence": 65, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Peer Effects in Corporate Investment", "year": 2024,
+       "topics_detail": [{"topic": "Corporate Investment and Financing", "subfield": "Corporate Finance and Governance", "field": "Economics, Econometrics and Finance", "score": 0.89}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 3}
+  },
+  {
+    "name": "Jack Ma-alt",
+    "institution": "SUSTech",
+    "field": "finance",
+    "reliability": {"confidence": 55, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Financial Market Microstructure and Liquidity", "year": 2023,
+       "topics_detail": [{"topic": "Market Microstructure", "subfield": "Financial Markets", "field": "Economics, Econometrics and Finance", "score": 0.81}]}
+    ],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 1}
+  },
+  {
+    "name": "Peter Song",
+    "institution": "SUFE",
+    "field": "finance",
+    "reliability": {"confidence": 70, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Insurance Market Regulation and Consumer Welfare", "year": 2023,
+       "topics_detail": [{"topic": "Insurance Economics", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.7}]}
+    ],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 1}
+  },
+  {
+    "name": "Queenie Tan",
+    "institution": "Sun Yat-sen University",
+    "field": "finance",
+    "reliability": {"confidence": 68, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Banking Competition and Credit Access for SMEs", "year": 2023,
+       "topics_detail": [{"topic": "Banking and Credit Markets", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.75}]}
+    ],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 1}
+  },
+  {
+    "name": "Karen Feng",
+    "institution": "XJTLU",
+    "field": "finance",
+    "reliability": {"confidence": 75, "level": "中", "action": "建议抽查一眼论文与机构", "flags": []},
+    "recent_works": [
+      {"title": "Land Tenure Reform and Agricultural Productivity", "year": 2025,
+       "topics_detail": [{"topic": "Agricultural Economics and Policy", "subfield": "Agricultural and Resource Economics", "field": "Economics, Econometrics and Finance", "score": 0.9}]},
+      {"title": "Crop Insurance Uptake among Smallholder Farmers", "year": 2024,
+       "topics_detail": [{"topic": "Agricultural Risk Management", "subfield": "Agricultural and Resource Economics", "field": "Economics, Econometrics and Finance", "score": 0.87}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 4},
+    "_note_for_reviewer": "示例：申请者方向为公司金融，该导师近两年研究实际是农业经济——用来演示「方向偏移」触发不推荐"
+  },
+  {
+    "name": "Leo Cao",
+    "institution": "Wuhan University",
+    "field": "finance",
+    "reliability": {"confidence": 80, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [],
+    "journal_ranking": {"tier": "default", "tier_reason": "未触发①②③任一条件", "window_a_paper_count": 0},
+    "_note_for_reviewer": "示例：身份可信，但近两年完全没有论文产出——用来演示「无产出」触发不推荐"
+  },
+  {
+    "name": "Mona Deng",
+    "institution": "Xiamen University",
+    "field": "finance",
+    "reliability": {"confidence": 20, "level": "低", "action": "必须人工确认后再用", "flags": []},
+    "recent_works": [
+      {"title": "Capital Structure and Ownership Concentration", "year": 2024,
+       "topics_detail": [{"topic": "Capital Structure and Firm Performance", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.85}]}
+    ],
+    "journal_ranking": {"tier": "good", "tier_reason": "Q2以上论文占比超过阈值", "window_a_paper_count": 3},
+    "_note_for_reviewer": "示例：论文方向明明匹配，但身份可信度过低——用来演示为什么身份存疑必须单独拎出去，不能直接混进「推荐」或「不推荐」"
+  },
+  {
+    "name": "Nina Bai",
+    "institution": "Renmin University",
+    "field": "finance",
+    "reliability": {"confidence": 95, "level": "高", "action": "可直接采用", "flags": ["profile_contamination_risk"]},
+    "recent_works": [
+      {"title": "Mergers and Acquisitions in the Banking Sector", "year": 2025,
+       "topics_detail": [{"topic": "Mergers and Acquisitions", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.9}]}
+    ],
+    "journal_ranking": {"tier": "top", "tier_reason": "命中UTD24期刊", "window_a_paper_count": 5}
+  },
+  {
+    "name": "Oscar Qin",
+    "institution": "Nankai University",
+    "field": "finance",
+    "reliability": {"confidence": 85, "level": "高", "action": "可直接采用", "flags": []},
+    "recent_works": [
+      {"title": "Financial Contagion Modeling", "year": 2024,
+       "topics_detail": [{"topic": "Systemic Risk and Contagion", "subfield": "Finance", "field": "Economics, Econometrics and Finance", "score": 0.7}]},
+      {"title": "Tumor Biomarker Discovery via Deep Learning", "year": 2024,
+       "topics_detail": [{"topic": "Cancer Biomarkers", "subfield": "Oncology", "field": "Medicine", "score": 0.6}]}
+    ],
+    "journal_ranking": {"tier": "contaminated", "tier_reason": "窗口A论文同时出现金融与肿瘤学等明显不相关学科组合，判定为身份污染风险，跳过分档", "window_a_paper_count": 2}
+  }
+]

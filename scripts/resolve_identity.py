@@ -25,7 +25,10 @@ def main():
     ap.add_argument("--institution")
     ap.add_argument("--field", help="e.g. finance — helps break ties among candidates")
     ap.add_argument("--mailto")
+    ap.add_argument("--api-key", help="OpenAlex API key (required since Feb 2026 — "
+                                      "free at https://openalex.org/settings/api)")
     a = ap.parse_args()
+    rv.API_KEY = a.api_key
 
     result = {"query": {"name": a.name, "institution": a.institution, "field": a.field}}
     try:

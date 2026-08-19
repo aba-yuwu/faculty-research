@@ -9,6 +9,17 @@ import json, os, re, time, requests
 
 BASE = "https://api.openalex.org"
 
+# OpenAlex made API keys mandatory for all requests starting Feb 13, 2026 (the old
+# mailto-based "polite pool" is retired). Without a key you get ~100 free demo
+# credits/day, then every request fails — and no amount of waiting fixes that,
+# since it isn't a per-second rate limit, it's a missing credential. Set once by
+# each script's main() after parsing --api-key, read automatically by _get() —
+# a module-level credential rather than threading a new parameter through the
+# dozens of functions that already pass `mailto` around, which would be a much
+# larger, more error-prone change for the same effect. Get a free key at
+# https://openalex.org/settings/api (an OpenAlex account, ~30 seconds).
+API_KEY = None
+
 # Alias table lives on disk so that mappings learned on one run persist to the next,
 # and so that a roster using unfamiliar abbreviations teaches the skill rather than
 # requiring every user to edit source. Layered lookup:
@@ -121,7 +132,7 @@ def same_institution(roster_inst, record_inst):
 
 
 
-def _get(path, mailto=None, **params):
+def _get(path, mailto=None, max_attempts=4, **params):
     """GET with a short retry/backoff for rate limits and transient errors.
 
     Callers mostly wrap _get() in try/except: continue (skip this search
@@ -130,22 +141,35 @@ def _get(path, mailto=None, **params):
     attempt and could turn a resolvable person into a false "not_found" with
     no indication anything went wrong. Retrying here, once, centrally, is
     cheaper than reasoning about that at every call site.
+
+    max_attempts is reduced by callers that already saw one full-retry
+    failure earlier in the same find_author() call — see _find_author_inner's
+    `degraded` flag. A single person's lookup can make up to ~8-10 of these
+    calls; if OpenAlex is having a bad few minutes, retrying every single one
+    of them for the full 4 attempts (1.5+3+6+12=22.5s of pure backoff sleep,
+    per call) turns one degraded person into several minutes of wall-clock
+    time for no added chance of success — the first failure already showed
+    the problem isn't a one-off blip.
     """
     if mailto:
         params["mailto"] = mailto
+    if API_KEY:
+        params["api_key"] = API_KEY
     last_exc = None
-    for attempt in range(4):
+    for attempt in range(max_attempts):
         try:
             r = _sess.get(f"{BASE}/{path}", params=params, timeout=45)
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(1.5 * (2 ** attempt))
+                if attempt < max_attempts - 1:
+                    time.sleep(1.5 * (2 ** attempt))
                 continue
             r.raise_for_status()
             time.sleep(0.12)
             return r.json()
         except requests.exceptions.RequestException as e:
             last_exc = e
-            time.sleep(1.5 * (2 ** attempt))
+            if attempt < max_attempts - 1:
+                time.sleep(1.5 * (2 ** attempt))
     raise last_exc or RuntimeError(f"OpenAlex request failed after retries: {path}")
 
 
@@ -218,7 +242,7 @@ def resolve_institution(name, mailto=None):
 
 
 # Western given names commonly adopted by scholars of Chinese/Korean heritage.
-# Rosters often record "Ka Chung Boris NG" while publications use "Ka Chung Ng",
+# Rosters often record "Ka Yan Boris Lee" while publications use "Ka Yan Lee",
 # so the adopted name must be dropped to find the real publication record.
 _ADOPTED = set("""alex alan amy andy angela annie anthony ben betty bill bob boris brian
 bruce carol cathy charlie cherry chris cindy claire coco daisy dan daniel david eddie
@@ -265,10 +289,10 @@ def name_variants(raw):
 
     if surname:
         core = [g for g in given if g.lower() not in _ADOPTED]
-        add(*core, surname)                       # Ka Chung Ng      <- usually correct
-        add(surname, *core)                       # Ng Ka Chung
+        add(*core, surname)                       # Ka Yan Lee      <- usually correct
+        add(surname, *core)                       # Lee Ka Yan
         if core != given:
-            add(*given, surname)                  # Ka Chung Boris Ng
+            add(*given, surname)                  # Ka Yan Boris Lee
     else:
         add(*toks)
         if len(toks) >= 2:
@@ -300,7 +324,7 @@ def name_compatible(query, candidate):
     """Reject fuzzy matches that share only a surname.
 
     OpenAlex `display_name.search` is token-based and fuzzy: querying
-    "Ka Chung Ng" also returns "Ka Wai Ng", "Ka Po Ng", "Ka Lok Ng" and so on.
+    "Ka Yan Lee" also returns "Ka Wing Lee", "Ka Po Lee", "Ka Lok Lee" and so on.
     Those are different people. Require that no given name conflicts: every given
     token of the shorter name must appear in the longer one (an initial counts as
     a match for a full token beginning with it).
@@ -323,55 +347,6 @@ def name_compatible(query, candidate):
             continue
         return False                        # a given name conflicts -> different person
     return True
-
-
-def _split_name(raw):
-    """-> (given_tokens, surname). Uses an ALL-CAPS token as the surname when present."""
-    n = re.sub(r"\b(Prof|Professor|Dr|Assoc|Asst|Associate|Assistant|Mr|Ms|Mrs)\.?\b", " ",
-               raw or "", flags=re.I)
-    n = re.sub(r"[（(].*?[)）]", " ", n)
-    n = "".join(ch for ch in n if not ("\u4e00" <= ch <= "\u9fff"))
-    n = n.replace("-", " ").replace("'", " ")
-    toks = [t.strip() for t in re.split(r"[\s,]+", n) if t.strip() and len(t) > 1]
-    if not toks:
-        return [], ""
-    caps = [t for t in toks if t.isupper() and len(t) > 1]
-    if len(caps) == 1:
-        sur = caps[0]
-        given = [t for t in toks if t is not sur]
-    else:
-        sur = toks[-1]
-        given = toks[:-1]
-    return [g.lower() for g in given], sur.lower()
-
-
-def name_matches(roster_name, candidate_name):
-    """Strict comparison. OpenAlex search is fuzzy: a query for 'Ka Chung Ng' also
-    returns 'Ka Wai Ng', 'Ka Po Ng', 'Ka Lok Ng' — different people sharing a surname
-    and a first syllable. Every given-name token must therefore be reconciled, not
-    just the first and last."""
-    rg, rs = _split_name(roster_name)
-    cg, cs = _split_name(candidate_name)
-    if not rs or not cs or rs != cs:
-        return False
-    if not rg or not cg:
-        return True
-
-    def compat(a, b):
-        if a == b:
-            return True
-        # allow an initial to stand for a full token: "k" vs "ka chung"
-        return (len(a) == 1 and b.startswith(a)) or (len(b) == 1 and a.startswith(b))
-
-    small, large = (cg, rg) if len(cg) <= len(rg) else (rg, cg)
-    used = []
-    for t in small:
-        hit = next((u for u in large if u not in used and compat(t, u)), None)
-        if hit is None:
-            return False                 # a given-name token that cannot be reconciled
-        used.append(hit)
-    # require at least one full (non-initial) token in common
-    return any(len(t) > 1 and t in large for t in small)
 
 
 def _affil_ids(author):
@@ -439,10 +414,27 @@ def institution_match_level(author, inst_id):
     if inst_id not in year_map:
         return "none"
     latest_year = max(year_map.values())
-    # Tolerance of 1 year: a paper submitted just before a move can still post-date
-    # it in OpenAlex's affiliation-year data, so treat "within 1 year of this
-    # author's own most recent recorded affiliation" as current rather than
-    # requiring an exact tie.
+    # Tolerance of 1 year is ONLY safe for a simple, two-institution "just moved"
+    # profile — the scenario the tolerance was actually written for: author moves
+    # from A to B, and a paper still shows A's affiliation string for a year that,
+    # in OpenAlex's data, slightly post-dates the real move. That reasoning breaks
+    # down for a SCATTERED profile with several unrelated institutions: inst_id's
+    # own year can land "within 1 year" of some OTHER, unrelated institution's
+    # latest year purely by coincidence, with no real transition connecting them —
+    # and a scattered multi-institution profile is itself a red flag for exactly
+    # the kind of merged/contaminated OpenAlex ID this whole check exists to catch
+    # (see pitfalls.md), so it should get LESS benefit of the doubt, not the same.
+    #
+    # Real case that exposed this: an author with affiliations at 5 unrelated
+    # institutions across 2012-2024 (USTC, this roster's target institution for
+    # one single year, three other unrelated Chinese institutions) had the target
+    # institution's one lone year treated as "current" purely because a totally
+    # different institution's most recent year happened to be 1 year later —
+    # institution_match_level said "current" for a profile whose own topics showed
+    # no connection to the roster's expected field at all, and the record was
+    # auto-accepted with no manual-review flag as a result.
+    if len(year_map) > 2:
+        return "current" if year_map[inst_id] == latest_year else "historical"
     return "current" if year_map[inst_id] >= latest_year - 1 else "historical"
 
 
@@ -539,24 +531,40 @@ def _find_author_inner(name, institution, mailto=None, field=None, min_works=0):
     inst_id, inst_name = resolve_institution(institution, mailto)
     variants = name_variants(name)
     seen_ids, pooled, rejected = set(), [], 0
+    attempted, failed = 0, 0   # track API-call failures separately from genuine
+                                # zero-result searches — see the final return path
+                                # below for why this distinction matters.
+    last_error = None
+    degraded = False   # set True after the first full-retry-exhaustion failure
+                        # in this call; every subsequent _get() call for THIS
+                        # person then uses max_attempts=1 (no backoff sleep at
+                        # all) instead of repeating the full 4-attempt/~10s
+                        # backoff on every one of the up to ~10 calls one
+                        # find_author() invocation can make — a person whose
+                        # search hits a genuinely bad network patch used to
+                        # cost minutes; now it costs one ~10s failure plus a
+                        # handful of near-instant ones.
 
     if inst_id:
         for variant in variants:
-            for filt in (f"display_name.search:{variant},affiliations.institution.id:{inst_id}",
-                         f"display_name.search:{variant},last_known_institutions.id:{inst_id}"):
+            def _try_filter(filt):
+                nonlocal attempted, failed, degraded, last_error, rejected
+                attempted += 1
                 try:
-                    d = _get("authors", mailto, **{"filter": filt, "per-page": 25})
-                except Exception:
-                    continue
-                for a in d.get("results", []):
+                    d = _get("authors", mailto, max_attempts=(1 if degraded else 4),
+                             **{"filter": filt, "per-page": 25})
+                except Exception as e:
+                    failed += 1
+                    degraded = True
+                    last_error = f"{type(e).__name__}: {e}"
+                    return False
+                results = d.get("results", [])
+                for a in results:
                     sid = _short_id(a)
                     if not sid or sid in seen_ids:
                         continue
                     if not verify_institution(a, inst_id):
                         rejected += 1          # filter was ignored by the API
-                        continue
-                    if not name_matches(name, a.get("display_name")):
-                        rejected += 1          # fuzzy search matched a different person
                         continue
                     if not name_compatible(variant, a.get("display_name")):
                         rejected += 1          # fuzzy search matched a different person
@@ -564,6 +572,20 @@ def _find_author_inner(name, institution, mailto=None, field=None, min_works=0):
                     if (a.get("works_count") or 0) < min_works:
                         continue
                     seen_ids.add(sid); pooled.append(a)
+                return bool(results)
+
+            # 只优先查 affiliations.institution.id——返回的作者对象本身就带着
+            # last_known_institutions 这个字段（不是filter决定返回哪些字段，
+            # 只决定筛选哪些记录），institution_match_level() 完全可以从这一次
+            # 查询的结果里直接算出"是不是当前机构"，不需要为了拿到这同一份数据
+            # 再单独发一次 last_known_institutions.id 过滤查询。只有这次查询
+            # 一无所获时，才补一次 last_known_institutions.id 兜底——极少数情况下
+            # OpenAlex的"最新机构"字段可能比论文层面统计出的affiliations历史更新，
+            # 两者不完全同步，这个兜底避免那种边界情况下漏掉正确候选人。这样常见
+            # 情况下机构搜索这一步的查询量能砍掉接近一半。
+            got_any = _try_filter(f"display_name.search:{variant},affiliations.institution.id:{inst_id}")
+            if not got_any:
+                _try_filter(f"display_name.search:{variant},last_known_institutions.id:{inst_id}")
 
         if pooled:
             # Roster institutions come from official faculty pages, i.e. they are
@@ -577,6 +599,22 @@ def _find_author_inner(name, institution, mailto=None, field=None, min_works=0):
             hist_tag = "" if current else "_historical_institution_only"
 
             if len(work_pool) == 1:
+                candidate = work_pool[0]
+                # 机构+姓名收窄到了唯一候选人，不代表这就一定是对的人——姓名
+                # 匹配本身有结构性局限：中文姓名"姓在前/名在前"顺序不统一，
+                # 就算两种词序都试过，也没法排除"两个不同的人姓名恰好互换"
+                # 这种巧合（参见 pitfalls.md #19 的真实案例）。如果填了FIELD，
+                # 这是一个和姓名/机构完全独立的信号，值得在"唯一候选人"这一步
+                # 就核对一下，而不是等到有多个候选人时才用它筛选。完全不沾边
+                # 就直接停下来交给人工核实，不再继续尝试其余的候选人筛选/
+                # 兜底搜索逻辑——唯一候选人本身就可能是匹配环节出错的结果，
+                # 越往下走越可能在错误的基础上做更多加工。
+                if field and field_score(candidate, field, mailto) == 0:
+                    topics_seen = ", ".join(t.get("display_name", "")
+                                            for t in (candidate.get("topics") or [])[:5])
+                    method = (f"field_mismatch_needs_review (expected field={field}, "
+                             f"candidate topics: {topics_seen or '无可用主题数据'})")
+                    return _fmt(work_pool, inst_name, inst_id, mailto=mailto), method
                 method = "matched_on_current_institution_verified" if current \
                     else "matched_on_historical_institution_only"
                 return _fmt(work_pool, inst_name, inst_id, mailto=mailto), method
@@ -612,6 +650,27 @@ def _find_author_inner(name, institution, mailto=None, field=None, min_works=0):
                     method = "matched_on_current_institution_clean_profile_heuristic" + hist_tag
                     return _fmt([picked], inst_name, inst_id, mailto=mailto), method
 
+            # Second-pass narrowing: exclude candidates whose OWN topic profile
+            # shows the hard-science-vs-quant-social contamination pattern
+            # (_contamination_risk) — a candidate whose papers span e.g. both
+            # Physics and Business, or Medicine and Finance, is very unlikely
+            # to be the single roster professor being searched for, regardless
+            # of whether _clean_single_institution_pick's stricter "1 vs 3+
+            # institutions" pattern also happened to apply. If exactly one
+            # candidate survives this exclusion, pick it — this directly
+            # reduces how often a 2-candidate tie has to go to manual review
+            # when one of the two is a plausible real match and the other is
+            # an obviously-contaminated OpenAlex entity.
+            if len(work_pool) > 1:
+                risk_flags = [(x, _contamination_risk(x, mailto)[0]) for x in work_pool]
+                non_risky = [x for x, risk in risk_flags if not risk]
+                if 0 < len(non_risky) < len(work_pool) and len(non_risky) == 1:
+                    method = "matched_on_current_institution_excluding_contaminated_candidates" + hist_tag
+                    return _fmt(non_risky, inst_name, inst_id, mailto=mailto), method
+                work_pool = non_risky or work_pool   # still narrow the pool for
+                                                       # the merge-check below,
+                                                       # even if not down to 1
+
             # Merge only when EVERY pair in the pool looks like one person split
             # across two OpenAlex entities: a split-entity timeline link (each
             # record's most-recent institution appears in the other's affiliation
@@ -630,15 +689,29 @@ def _find_author_inner(name, institution, mailto=None, field=None, min_works=0):
             return _fmt(work_pool, inst_name, inst_id, mailto=mailto), "ambiguous_same_institution" + hist_tag
 
     for variant in variants:
+        attempted += 1
         try:
-            d = _get("authors", mailto,
+            d = _get("authors", mailto, max_attempts=(1 if degraded else 4),
                      **{"filter": f"display_name.search:{variant}", "per-page": 25})
-        except Exception:
+        except Exception as e:
+            failed += 1
+            degraded = True
+            last_error = f"{type(e).__name__}: {e}"
             continue
         res = [a for a in d.get("results", [])
                if _short_id(a) and name_compatible(variant, a.get("display_name"))]
         if res:
             return _fmt(res, inst_name), "name_only_unverified"
+
+    # A "not_found" that's actually "every single API call for this person
+    # raised an exception" is indistinguishable from a genuine zero-result
+    # search unless flagged separately — and the two need completely
+    # different responses: "not_found" means go verify manually / this
+    # person likely isn't well-indexed; "api_error" means re-run the batch
+    # (the cache will skip everyone who succeeded) because this person's
+    # result is not trustworthy, not because they don't exist.
+    if attempted > 0 and failed == attempted:
+        return [], f"api_error: {last_error}"
     return [], "not_found"
 
 
@@ -759,37 +832,87 @@ def _looks_like_same_person(records, mailto, min_overlap=0.15):
 _MEDICAL_DOMAINS = {"Medicine", "Health Professions", "Nursing", "Dentistry",
                     "Veterinary", "Biochemistry, Genetics and Molecular Biology"}
 
+# Broader version of the same idea, generalized beyond medicine specifically:
+# "hard", lab/bench/clinical sciences on one side, "quant social" fields
+# (business/finance/econ/social science) on the other. A field name landing
+# on BOTH sides for one author is a much stronger signal than raw domain
+# count — see _contamination_risk. Verified against OpenAlex's own 26-field
+# taxonomy (Domain -> Field -> Subfield -> Topic; docs.openalex.org), plus
+# the older level-0 concept-tree names the API still returns.
+#
+# Deliberately NOT included on either side — and this matters as much as
+# what IS included: Computer Science, Mathematics, Engineering, Environmental
+# Science, Psychology. These legitimately bridge both sides in real,
+# unremarkable careers (fintech, quantitative finance, computational social
+# science, health economics, operations research, engineering management) —
+# pairing one of these with either side alone must NOT read as contamination,
+# or every quant-finance or health-economics professor gets a false flag.
+_HARD_SCIENCE_FIELDS = {
+    # new (2024+) field-level names
+    "Medicine", "Health Professions", "Nursing", "Dentistry", "Veterinary",
+    "Biochemistry, Genetics and Molecular Biology", "Immunology and Microbiology",
+    "Neuroscience", "Pharmacology, Toxicology and Pharmaceutics",
+    "Agricultural and Biological Sciences", "Physics and Astronomy", "Chemistry",
+    "Chemical Engineering", "Materials Science", "Earth and Planetary Sciences",
+    "Energy",
+    # legacy level-0 concept-tree names (x_concepts)
+    "Biology", "Physics", "Geology", "Geography",
+}
+_SOCIAL_QUANT_FIELDS = {
+    # new (2024+) field-level names
+    "Business, Management and Accounting", "Economics, Econometrics and Finance",
+    "Decision Sciences",
+    # legacy level-0 concept-tree names (x_concepts)
+    "Business", "Economics", "Political science", "Sociology",
+}
 
-def _topic_domains(a, mailto, min_concept_score=0.35):
-    """Level-0 ('domain') classification of this author's own aggregate topics.
 
-    Used to catch a pollution pattern that institution/recency checks cannot see:
-    OpenAlex's author disambiguation is unreliable for common names and sometimes
-    absorbs a DIFFERENT real person's work into the SAME author ID — this shows
-    up as papers spanning clearly unrelated fields on what is supposedly one
-    candidate, not two, so no merge-time check ever runs on it.
+def _topic_domains_and_fields(a, mailto, min_concept_score=0.35):
+    """One _full() fetch, returning (domains, fields) — the coarse 4-value
+    domain level and the more granular 26-value field level of OpenAlex's
+    topic hierarchy, plus the legacy level-0 concept-tree names for both.
+    Splitting these into two return values (rather than one merged set)
+    matters: mixing domain-level and field-level names into one set inflates
+    a naive len(...)>=3 count purely because each topic contributes both a
+    domain name AND a field name, not because the author actually spans more
+    distinct areas. Computing both from a single _full() call (rather than
+    two separate helper functions each calling _full() independently) avoids
+    fetching the same author's full record twice.
     """
     full = _full(a, mailto)
-    domains = set()
+    domains, fields = set(), set()
     for t in (full.get("topics") or []):
         d = (t.get("domain") or {}).get("display_name")
         if d:
             domains.add(d)
+        f = (t.get("field") or {}).get("display_name")
+        if f:
+            fields.add(f)
     for c in (full.get("x_concepts") or []):
         if (c.get("level") == 0) and (c.get("score") or 0) >= min_concept_score:
             d = c.get("display_name")
             if d:
                 domains.add(d)
-    return domains
+                fields.add(d)
+    return domains, fields
+
+
+def _topic_domains(a, mailto, min_concept_score=0.35):
+    """Level-0 ('domain') classification of this author's own aggregate topics.
+    See _topic_domains_and_fields() — kept as a thin wrapper since several
+    callers only need the domain set."""
+    return _topic_domains_and_fields(a, mailto, min_concept_score)[0]
 
 
 def _contamination_risk(a, mailto):
     """(risk: bool, domains seen) for a single already-resolved OpenAlex entity."""
-    domains = _topic_domains(a, mailto)
-    if not domains:
+    domains, fields = _topic_domains_and_fields(a, mailto)
+    if not domains and not fields:
         return False, domains
     if (domains & _MEDICAL_DOMAINS) and (domains - _MEDICAL_DOMAINS):
         return True, domains
+    if (fields & _HARD_SCIENCE_FIELDS) and (fields & _SOCIAL_QUANT_FIELDS):
+        return True, domains | fields
     return len(domains) >= 3, domains
 
 

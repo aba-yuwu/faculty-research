@@ -75,8 +75,11 @@ def main():
     ap.add_argument("--field", default="finance")
     ap.add_argument("--name", help="optional: highlight matches for this person")
     ap.add_argument("--mailto"); ap.add_argument("--years", type=int, default=6)
+    ap.add_argument("--api-key", help="OpenAlex API key (required since Feb 2026 — "
+                                      "free at https://openalex.org/settings/api)")
     ap.add_argument("--out")
     a = ap.parse_args()
+    rv.API_KEY = a.api_key
 
     inst_id, inst_name, people = authors_at(a.institution, a.field, a.mailto, a.years)
     if not inst_id:

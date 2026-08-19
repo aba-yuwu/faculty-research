@@ -7,6 +7,8 @@ description: Build and maintain a systematically verified database of academic f
 
 A verification-first workflow for building faculty databases. Optimized for the failure modes that actually occur: stale institutional pages, contaminated author profiles, name collisions, and identifier drift across versions of the same dataset.
 
+Full version history lives in `CHANGELOG.md`, not here — this file and the notebook stay focused on current behavior.
+
 ## Core principle
 
 **Never fill a field you could not verify.** An empty cell is recoverable; a fabricated PhD year silently corrupts every downstream ranking and may send someone to contact the wrong person. When a field cannot be verified, write an explicit marker (e.g. `待核实 / UNVERIFIED`) plus a one-line note on *what was tried and why it failed*. That note is what lets the user close the gap themselves.
@@ -85,6 +87,65 @@ Rules:
 - When re-ranking, remap *all* dependent artifacts in the same operation and verify by spot-checking names on both sides.
 - Store category markers (priority, risk flags) in a **column**, not in cell formatting, so they travel with the row when sorted.
 
+### 7. (Optional) Grade journal quality and pick representative papers
+
+If the user supplies a JCR journal list, run `journal_ranking.py` on
+`batch_enrich.py`'s output to grade each professor's recent journal record
+and select up to 3 representative papers. This is a separate, optional pass
+— it never runs implicitly, since it requires data (the JCR list) the user
+must provide themselves. See `references/journal-ranking-design.md` for the
+full decision tree; the short version:
+
+- Judges quality over a broader recent window, picks representative papers
+  from a narrower, more current one (both configurable).
+- Applies an ESCI percentile penalty and a UTD24 override before judging.
+- Matches each paper's venue to the JCR list through four layers (exact
+  ISSN → exact full-name → exact abbreviation → fuzzy), and reports match
+  provenance — never silently drops an unmatched paper into the best or
+  worst bucket.
+- Runs a research-direction signal with three independent branches — common
+  crossover (e.g. finance + info systems) is exempted; a real but small
+  secondary field (e.g. finance + psychology) needs a meaningfully high
+  share of output before it's worth a note; an essentially implausible
+  combination (e.g. finance + oncology) blocks tier/recommendation outright
+  past one paper, with a single paper treated as classification noise and
+  excluded rather than either accepted or blocking. See
+  `references/journal-ranking-design.md` §8 for the full family/exception
+  table behind this.
+- Labels any relevance-to-interests note as keyword-based, not semantic.
+
+### 8. Feeding human review back in
+
+Every stage that can't auto-resolve identity (ambiguous candidates, contamination
+risk, historical-institution-only, field mismatch) writes a `enrich_status` that
+is never silently treated as "ok" — but a human confirming the right answer needs
+a way to get that answer back into the pipeline, not just read it. `merge_to_excel.py`
+adds a "人工核实结果" column for exactly this: fill in an OpenAlex author ID (a
+human decided, by whatever means — the OpenAlex website, a school homepage, a
+Semantic Scholar search — this specific ID is the right person), the literal text
+`ok` (the single candidate already listed is correct), or `skip` (confirmed not
+findable, stop flagging it). Re-upload the filled-in sheet and run
+`apply_manual_review.py` against it: it re-fetches the confirmed person's full
+profile the same way `batch_enrich.py` does for an automatic match, so a
+manually-confirmed record is indistinguishable in shape from one afterward — it
+flows through `confidence.py` / `journal_ranking.py` / `merge_to_excel.py`
+identically on the next pass, no special-casing needed downstream.
+
+### 9. (Optional) Shortlist advisors from the scored roster
+
+Once `confidence.py` (and optionally `journal_ranking.py`) has run, `advisor_recommend.py`
+turns the result into three lists, kept deliberately separate: **待人工核实身份** for
+records whose identity itself isn't trustworthy yet (low confidence, contamination risk, or
+an internally-inconsistent research profile) — pulled out before any fit judgment, never
+mixed into either list below; **不推荐** for identity-verified records whose research simply
+doesn't fit (zero overlap between the advisor's recent papers and the applicant's stated
+interests, or no recent output); and a ranked **推荐排名** table with a highlighted Top-N for
+everyone else. Direction fit is matched against each paper's OpenAlex topic/subfield/field
+labels, not just title text, so on-topic papers whose titles don't spell out the field name
+still register. See `references/advisor-recommendation-design.md` for the full gate logic,
+the score formula, why identity and fit are never conflated, and its final section for what
+is deliberately **not** built yet (a web intake form, daily automated re-checking).
+
 ## Scripts
 
 Run with `python scripts/<name>.py --help` for usage. All are standalone and dependency-light (`requests`, `openpyxl`).
@@ -92,10 +153,13 @@ Run with `python scripts/<name>.py --help` for usage. All are standalone and dep
 | Script | Purpose |
 |---|---|
 | `resolve_v2.py` | **Core identity resolver.** Institution-ID filtering + recency check + field tie-break + clean-profile heuristic + contamination detection + split-entity merge criteria. Everything else calls into this. |
-| `batch_enrich.py` | Runs `resolve_v2` across an entire roster in one pass, with a field/since-aware cache; reports unresolved or flagged names instead of guessing |
+| `batch_enrich.py` | Runs `resolve_v2` across an entire roster in one pass, with a field/window-aware cache; reports unresolved or flagged names instead of guessing |
+| `journal_ranking.py` | **Optional add-on.** Grades Window-A journal output against a user-supplied JCR list (ESCI-adjusted percentile + UTD24 override), then picks up to 3 representative papers per professor from Window B. Needs its own JCR xlsx — see `references/journal-ranking-design.md` |
 | `confidence.py` | Deterministic, auditable scoring of how much to trust each match, with stated reasons |
-| `merge_to_excel.py` | Writes results into a copy of the original spreadsheet (never the original) plus a paper-level "论文明细" detail sheet |
+| `merge_to_excel.py` | Writes results into a copy of the original spreadsheet (never the original) plus a paper-level "论文明细" detail sheet, and a "代表作推荐" sheet if `journal_ranking.py` was run |
 | `openalex_links.py` | One-click browser URLs for every row that needs manual verification |
+| `apply_manual_review.py` | Reads a human's identity-review decisions back from the "人工核实结果" column `merge_to_excel.py` adds, re-fetches the confirmed person's full profile, and writes an updated `enriched.json` so manually-confirmed records flow through `confidence.py`/`journal_ranking.py`/`merge_to_excel.py` identically to automatic matches |
+| `advisor_recommend.py` | **Optional add-on.** Combines `confidence.py`/`journal_ranking.py` output into 3 separate lists: 待人工核实身份 (identity gate), 不推荐 (direction/output fit gate), and a ranked, reasoned Top-N shortlist. See `references/advisor-recommendation-design.md` |
 | `reverse_lookup.py` | Institution+field → author pool, then match the name — the reliable route for common names |
 | `resolve_identity.py` | Single-person lookup: `resolve_v2` + an independent ORCID cross-check |
 | `fetch_openalex.py` | Low-level OpenAlex client: author profile, works (with per-paper institution/link/coauthors), affiliation timeline |
@@ -114,6 +178,8 @@ Run `audit_dataset.py` after every batch. It catches most of the pitfalls automa
 - `references/verification-rules.md` — field-by-field acceptance criteria, age hierarchy, co-authorship matching, scoring rules
 - `references/pitfalls.md` — catalogue of real failure modes with detection and fix for each
 - `references/schema.md` — recommended column layout and network-graph JSON format
+- `references/journal-ranking-design.md` — tier decision tree, ESCI penalty, UTD24 override, the 4-layer journal-name matching strategy, and the research-direction mix note, all used by `journal_ranking.py`
+- `references/advisor-recommendation-design.md` — exclusion gates, weighted score formula, and reason-string philosophy for `advisor_recommend.py`, plus what is deliberately not built yet
 
 ## Reporting to the user
 

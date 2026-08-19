@@ -14,8 +14,12 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from resolve_v2 import same_institution, norm_inst
+    from resolve_v2 import same_institution, norm_inst, ALIASES, initials_match
 except Exception:                                   # standalone fallback
+    ALIASES = {}
+    def initials_match(abbrev, full_name):
+        return False
+
     def norm_inst(name):
         n = re.sub(r"[^\w\s]", " ", str(name or "").lower())
         return re.sub(r"^the ", "", re.sub(r"\s+", " ", n).strip())
@@ -38,6 +42,7 @@ METHOD_BASE = {
     "matched_on_current_institution_verified": 95,
     "matched_on_current_institution_and_field": 90,
     "matched_on_current_institution_clean_profile_heuristic": 82,
+    "matched_on_current_institution_excluding_contaminated_candidates": 75,
     "merged_duplicate_records": 65,
     "matched_on_historical_institution_only": 30,
     "merged_duplicate_records_historical_institution_only": 25,
@@ -45,6 +50,17 @@ METHOD_BASE = {
     "ambiguous_same_institution_historical_institution_only": 10,
     "name_only_unverified": 12,
     "not_found": 0,
+    "field_mismatch_needs_review": 5,   # institution+name narrowed to exactly one
+                                        # candidate, but their topics show zero
+                                        # overlap with the configured --field — a
+                                        # structural blind spot in name matching for
+                                        # Chinese names (see pitfalls.md #19), not
+                                        # treated as trustworthy just because it's
+                                        # the only candidate found.
+    "api_error": 0,   # every OpenAlex call for this person raised an exception (see
+                      # resolve_v2._find_author_inner) — untrustworthy for the same
+                      # reason not_found is, but for a different reason: re-running
+                      # may well find them, this isn't necessarily "not on OpenAlex."
 }
 
 # Keyword flag for the "contaminated profile" pitfall (see pitfalls.md #4): topics or
@@ -65,10 +81,38 @@ def _inst_agrees(roster_inst, record_insts):
     while denoting different places. Initials are used earlier to *resolve* an
     abbreviation, never to *verify* one — 'CUHK' is the initialism of both the
     Chinese University and the City University of Hong Kong.
+
+    Returns True (confirmed match) / False (confirmed mismatch) / None (either no
+    data, or — importantly — the roster institution is an abbreviation this script
+    has no expansion for). same_institution() falls back to comparing the raw,
+    un-expanded abbreviation string when the local alias table doesn't have an
+    entry for it (this script deliberately makes no network calls of its own to
+    resolve one, unlike merge_to_excel.py's _institution_mismatch — see
+    pitfalls.md #20's "unknown vs mismatch" fix there for the same underlying
+    problem). A raw abbreviation almost never appears verbatim inside OpenAlex's
+    expanded institution name ("NUS" is not a substring of "National University
+    of Singapore"), so treating that fallback's failure as a confirmed mismatch
+    would flag correct matches as wrong purely because the alias wasn't cached
+    yet when this particular script ran — the exact false-positive pattern a
+    real run produced en masse. Only trust a "no match" verdict when the alias
+    table actually had an expansion to compare against.
     """
     if not roster_inst or not record_insts:
         return None
-    return any(same_institution(roster_inst, r) for r in record_insts)
+    resolved = (ALIASES.get(str(roster_inst).strip()) or {}).get("display_name")
+    agree = any(same_institution(roster_inst, r) for r in record_insts)
+    if agree:
+        return True
+    if resolved:
+        return False       # compared against a real expansion and still disagreed
+    # no cached expansion — the abbreviation might still plausibly be this
+    # institution's initials even though the alias table hasn't confirmed it
+    # (e.g. a fresh session that hasn't resolved it yet); a genuine mismatch
+    # would fail this too, so it's not a strong "match" signal, but failing
+    # it on top of an unresolved alias is not a strong "mismatch" signal either.
+    if any(initials_match(roster_inst, r) for r in record_insts):
+        return None
+    return None
 
 
 def score_one(rec, expect_field="finance"):
@@ -76,8 +120,15 @@ def score_one(rec, expect_field="finance"):
     method = rec.get("match_method") or ""
     # "_profile_contamination_risk" can be appended on top of any base method (see
     # resolve_v2.find_author) — strip it for the base lookup, then apply its own
-    # penalty once, rather than enumerating every combined string.
+    # penalty once, rather than enumerating every combined string. "api_error" carries
+    # a dynamic exception message after it ("api_error: ConnectionError: ...") that
+    # must also be stripped before the METHOD_BASE lookup, or it never matches the
+    # "api_error" entry and silently falls through to the generic-unknown default.
     base_method = method.replace("_profile_contamination_risk", "")
+    if base_method.startswith("api_error"):
+        base_method = "api_error"
+    if base_method.startswith("field_mismatch_needs_review"):
+        base_method = "field_mismatch_needs_review"
     base = METHOD_BASE.get(base_method, 25)
     pts += base
     why.append(f"匹配方式「{base_method or '未知'}」基准 {base} 分")
@@ -98,7 +149,13 @@ def score_one(rec, expect_field="finance"):
         why.append(f"机构与名单不一致 −15（名单「{roster_inst}」vs 记录「{insts[:2]}」）")
         flags.append("institution_mismatch")
     else:
-        pts -= 5; why.append("记录中无任何机构信息 −5")
+        if insts:
+            pts -= 2
+            why.append(f"机构缩写「{roster_inst}」未能确认展开后是否与记录一致 −2"
+                       f"（不代表真的不一致，多半是本地别名缓存还没有这条，"
+                       f"记录「{insts[:2]}」）")
+        else:
+            pts -= 5; why.append("记录中无任何机构信息 −5")
 
     merged = rec.get("merged_ids") or []
     if merged:

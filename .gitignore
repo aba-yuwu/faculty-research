@@ -1,0 +1,37 @@
+# Runtime caches and intermediate files — regenerated on every run, never
+# meant to be committed (see references/journal-ranking-design.md §7 and
+# references/pitfalls.md for why the alias cache under assets/ is the one
+# JSON file that's the exception, since it's a small hand-seedable table,
+# not user data).
+.openalex_cache.json
+*jcr*cache*.json
+*jcr*.xlsx
+*jcr*.xls
+*JCR*.xlsx
+*JCR*.xls
+
+# Per-run outputs — the user's own data, not project source
+enriched*.json
+ranked*.json
+scored*.json
+*_OA补全_*.xlsx
+待人工确认.md
+test10.xlsx
+test10.json
+roster*.xlsx
+result*.xlsx
+advisors.xlsx
+!examples/*.xlsx
+!examples/*.json
+
+# API keys / credentials — no script in this repo writes one to a file (every
+# script takes --api-key / --mailto as a CLI argument each run), but this is
+# a defensive backstop in case a local convenience file is ever created.
+.env
+*.env
+api_key*.txt
+credentials*.json
+config.local.json
+
+__pycache__/
+*.pyc

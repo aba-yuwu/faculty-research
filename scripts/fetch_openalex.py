@@ -13,6 +13,17 @@ import requests
 
 BASE = "https://api.openalex.org"
 
+# OpenAlex made API keys mandatory for all requests starting Feb 13, 2026 (the old
+# mailto-based "polite pool" is retired). Without a key you get ~100 free demo
+# credits/day, then every request fails — and no amount of waiting fixes that,
+# since it isn't a per-second rate limit, it's a missing credential. Set once by
+# each script's main() after parsing --api-key, read automatically by _get() —
+# a module-level credential rather than threading a new parameter through the
+# dozens of functions that already pass `mailto` around, which would be a much
+# larger, more error-prone change for the same effect. Get a free key at
+# https://openalex.org/settings/api (an OpenAlex account, ~30 seconds).
+API_KEY = None
+
 
 def short_id(obj):
     """OpenAlex ids are URLs, and some records carry a null id. Never assume."""
@@ -25,6 +36,8 @@ def _get(path, mailto, **params):
     see resolve_v2._get for why this matters even for a single failed call."""
     if mailto:
         params["mailto"] = mailto
+    if API_KEY:
+        params["api_key"] = API_KEY
     last_exc = None
     for attempt in range(4):
         try:
@@ -108,6 +121,32 @@ def works(author_id, mailto, since=None, limit=200):
             "title": w.get("display_name"),
             "year": w.get("publication_year"),
             "venue": ((w.get("primary_location") or {}).get("source") or {}).get("display_name"),
+            # issn_l is the "linking ISSN" OpenAlex normalizes electronic/print
+            # variants to; fall back to the first entry in the source's raw
+            # issn list when issn_l is absent. Kept alongside venue name so a
+            # future ISSN-based exact match (see journal_ranking_feature_handoff.md
+            # §3) doesn't need a second OpenAlex round-trip.
+            "venue_issn": (((w.get("primary_location") or {}).get("source") or {}).get("issn_l")
+                          or (((w.get("primary_location") or {}).get("source") or {}).get("issn") or [None])[0]),
+            "topics": [t.get("display_name") for t in (w.get("topics") or [])[:5]],
+            # Additive, backward-compatible: "topics" above stays a flat list of
+            # strings exactly as before (journal_ranking.py's _paper_text() and
+            # anything else already reading it is untouched). topics_detail keeps
+            # the subfield/field labels OpenAlex's own topic classifier already
+            # assigns each topic — a curated taxonomy (~4,500 topics under ~250
+            # subfields under 26 fields), not something this project computes.
+            # Exists so advisor_recommend.py can match a stated research interest
+            # against a paper's OpenAlex-assigned discipline label, not just its
+            # title text — catches papers whose title never spells out the field
+            # name but whose OpenAlex classification does. See
+            # references/advisor-recommendation-design.md §2.
+            "topics_detail": [
+                {"topic": t.get("display_name"),
+                 "subfield": (t.get("subfield") or {}).get("display_name"),
+                 "field": (t.get("field") or {}).get("display_name"),
+                 "score": t.get("score")}
+                for t in (w.get("topics") or [])[:5]
+            ],
             "type": w.get("type"),
             "doi": w.get("doi"),
             "is_published": (w.get("type") == "article"
@@ -126,9 +165,14 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--name"); p.add_argument("--institution")
     p.add_argument("--author-id"); p.add_argument("--mailto")
+    p.add_argument("--api-key", help="OpenAlex API key (required since Feb 2026 — "
+                                     "free at https://openalex.org/settings/api)")
     p.add_argument("--field", help="e.g. finance — helps break ties among candidates")
     p.add_argument("--since", help="YYYY, restrict works")
     a = p.parse_args()
+    global API_KEY
+    API_KEY = a.api_key
+    rv.API_KEY = a.api_key
     if not a.author_id:
         if not a.name:
             p.error("need --name or --author-id")
